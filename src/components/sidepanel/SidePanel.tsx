@@ -14,6 +14,7 @@ export function SidePanel() {
   const [tone, setTone] = useState<Tone>("professional");
   const currId = useRef<string | null>(null);
   const elementAtGenerate = useRef<string | null>(null);
+  const generatedMap = useRef<Map<string, string>>(new Map());
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
@@ -47,8 +48,10 @@ export function SidePanel() {
       return;
     }
     const id = data.elementId as string;
-    if (id !== currId.current) setGenerated("");
+    const saved = generatedMap.current.get(id);
+    if (id !== currId.current && !saved) setGenerated("");
     currId.current = id;
+    if (saved) setGenerated(saved);
     const parsed = parseContext(data as Record<string, unknown>);
     if (parsed || ctxRef.current === null) setCtx(parsed);
   }
@@ -58,13 +61,23 @@ export function SidePanel() {
     setLoading(true);
     setGenerated("");
     elementAtGenerate.current = currId.current;
-    const result = await generateComment(
-      { author: ctx.author, content: ctx.content },
-      tone,
-    );
-    if (currId.current !== elementAtGenerate.current) return;
-    setGenerated(result);
-    setLoading(false);
+    try {
+      const result = await generateComment(
+        { author: ctx.author, content: ctx.content },
+        tone,
+      );
+      if (currId.current !== elementAtGenerate.current) return;
+      setGenerated(result);
+      if (currId.current) {
+        generatedMap.current.set(currId.current, result);
+        if (generatedMap.current.size > 20) {
+          const key = generatedMap.current.keys().next().value;
+          if (key) generatedMap.current.delete(key);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [ctx, tone]);
 
   const handleInsert = useCallback(() => {
