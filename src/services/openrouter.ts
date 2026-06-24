@@ -4,12 +4,17 @@ const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_MODEL = import.meta.env.VITE_OPENROUTER_MODEL;
 
 export async function generateComment(post: LinkedInPost, tone: Tone): Promise<string> {
+    const replySection = post.replyTo
+        ? `\nReplying to a comment by ${post.replyTo.name}:\n${post.replyTo.comment}\n\nWrite a reply to their comment, not a top-level comment.\n`
+        : '';
+
     const prompt = `
       Post Author:
       ${post.author}
 
       Post Content:
       ${post.content}
+      ${replySection}
 
       Desired Tone:
       ${tone}

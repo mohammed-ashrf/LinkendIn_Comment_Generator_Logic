@@ -2,17 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { generateComment } from "../../services/openrouter";
 import { bridge } from "../../services/bridge";
 import { parseContext } from "../../services/parseContext";
-import type { Tone } from "../../types";
+import type { ReplyTo, Tone } from "../../types";
 import { ToneSelector } from "./ToneSelector";
 import { GenerateButton } from "./GenerateButton";
 import { GeneratedComment } from "./GeneratedComment";
 
 export function SidePanel() {
-  const [ctx, setCtx] = useState<{ author: string; content: string } | null>(null);
+  const [ctx, setCtx] = useState<{ author: string; content: string; replyTo: ReplyTo | null } | null>(null);
   const [generated, setGenerated] = useState("");
   const [loading, setLoading] = useState(false);
   const [tone, setTone] = useState<Tone>("professional");
   const currId = useRef<string | null>(null);
+  const loadingRef = useRef(false);
   const elementAtGenerate = useRef<string | null>(null);
   const generatedMap = useRef<Map<string, string>>(new Map());
   const ctxRef = useRef(ctx);
@@ -26,6 +27,7 @@ export function SidePanel() {
       if (!cancelled && data) handleFocuseData(data);
     });
     function clearState() {
+      if (loadingRef.current) return;
       setCtx(null);
       setGenerated("");
       currId.current = null;
@@ -42,6 +44,7 @@ export function SidePanel() {
 
   function handleFocuseData(data: any) {
     if (data._focused === false) {
+      if (loadingRef.current) return;
       setCtx(null);
       setGenerated("");
       currId.current = null;
@@ -53,17 +56,19 @@ export function SidePanel() {
     currId.current = id;
     if (saved) setGenerated(saved);
     const parsed = parseContext(data as Record<string, unknown>);
+    console.log("Parsed context:", parsed);
     if (parsed || ctxRef.current === null) setCtx(parsed);
   }
 
   const handleGenerate = useCallback(async () => {
     if (!ctx) return;
+    loadingRef.current = true;
     setLoading(true);
     setGenerated("");
     elementAtGenerate.current = currId.current;
     try {
       const result = await generateComment(
-        { author: ctx.author, content: ctx.content },
+        { author: ctx.author, content: ctx.content, replyTo: ctx.replyTo },
         tone,
       );
       if (currId.current !== elementAtGenerate.current) return;
@@ -77,6 +82,7 @@ export function SidePanel() {
       }
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   }, [ctx, tone]);
 
@@ -106,8 +112,17 @@ export function SidePanel() {
       {ctx && (
         <>
           <div className="post-card">
+            {ctx.replyTo && (
+              <div className="reply-badge">↪ Replying to {ctx.replyTo.name}</div>
+            )}
             <div className="post-author">Post by: {ctx.author}</div>
             <div className="post-text">{ctx.content.slice(0, 300)}</div>
+            {ctx.replyTo && (
+              <div className="reply-comment">
+                <div className="reply-comment-header">Parent comment by {ctx.replyTo.name}:</div>
+                <div className="reply-comment-text">{ctx.replyTo.comment.slice(0, 200)}</div>
+              </div>
+            )}
           </div>
           <ToneSelector value={tone} onChange={setTone} />
           <GenerateButton loading={loading} onClick={handleGenerate} />
